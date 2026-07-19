@@ -12,6 +12,7 @@ pluggy==1.6.0
 Pygments==2.20.0
 pytest==9.1.1
 python-dateutil==2.9.0.post0
+python-whois==0.9.6
 requests==2.34.2
 scikit-learn==1.9.0
 scipy==1.18.0
