@@ -13,5 +13,5 @@ data/processed/
 Thumbs.db
 
 # ML artifacts
-ml/models/*.pkl
-ml/models/*.onnx
+ml/models/**/*.pkl
+ml/models/**/*.onnx
