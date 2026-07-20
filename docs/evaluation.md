@@ -44,3 +44,43 @@ rather than a real security signal.
 real predictive value — removing it eliminated the false-positive pattern without
 any accuracy cost. Verified: wikipedia.org now scores 35 ("likely safe") instead
 of 95 ("phishing").
+
+## Model v0.3.0 — Red-Team Feature Additions (Round 1)
+
+**Trigger:** Manual adversarial testing after Phase 6 found that IDN
+homograph attacks, obfuscated IPs (decimal/hex), and typosquat domains
+were largely undetected (2 of 8 tested attack patterns caught).
+
+**Added features:** `has_obfuscated_ip`, `has_non_ascii`,
+`brand_similarity_flag` (Levenshtein distance with homoglyph normalization
+against a list of 16 commonly-impersonated brands).
+
+**Result:** ROC-AUC 0.8555 (unchanged from v0.2.0's 0.8554). Investigation
+showed the new features extracted correctly but had too few positive
+examples in the training set for XGBoost to learn strong weights
+(`has_obfuscated_ip`: 3 rows; `has_non_ascii`: more common in "good"
+class than "bad"; `brand_similarity_flag`: 1,923 rows). Verdicts barely
+moved despite the new signals existing.
+
+## Model v0.4.0 — Red-Team Feature Additions + Rule-Based Overrides
+
+**Added feature:** `brand_in_subdomain_flag` — detects a known brand name
+appearing as a non-final hostname label while the registered domain is
+unrelated (e.g. `paypal.com.verify-account-security-check.xyz`). 4,549
+positive rows in training data, 34x more common in phishing than
+legitimate URLs — enough signal for the model to learn from directly.
+
+**Architecture change:** Added a rule-based override layer in
+`ml/explain.py` on top of the ML score, since `has_obfuscated_ip` and
+`has_non_ascii` remain statistically too rare for the model to weight
+reliably on their own:
+- Hard floor of 90 for `has_obfuscated_ip`, `has_non_ascii`,
+  `brand_in_subdomain_flag` (low false-positive risk)
+- Partial +25 boost for `brand_similarity_flag` (higher false-positive
+  risk, so nudged rather than forced)
+
+**Result:** ROC-AUC 0.8553 (unchanged). Red-team retest: 8 of 8 previously
+missed attack patterns now correctly flagged as phishing (scores 66-100),
+with 0 false positives introduced on real domains (google.com, wikipedia.org,
+paypal.com all still score 34-35, "likely safe"). Full methodology and
+results table in `docs/limitations.md`.

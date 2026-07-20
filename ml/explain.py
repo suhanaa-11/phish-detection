@@ -9,10 +9,9 @@ _explainer = None
 def _load_model():
     global _model, _explainer
     if _model is None:
-        _model = joblib.load("ml/models/v0.2.0/model.pkl")
+        _model = joblib.load("ml/models/v0.4.0/model.pkl")
         _explainer = shap.TreeExplainer(_model)
     return _model, _explainer
-
 
 def _describe_feature(feat_name: str, value) -> str:
     """Generate a human-readable reason based on the ACTUAL feature value."""
@@ -28,6 +27,14 @@ def _describe_feature(feat_name: str, value) -> str:
         return "URL uses a raw IP address instead of a domain name" if value == 1 else None
     if feat_name == "subdomain_count":
         return f"URL has an unusual number of subdomains ({int(value)})"
+    if feat_name == "has_obfuscated_ip":
+        return "URL hides an IP address using decimal or hex encoding — a known evasion technique" if value == 1 else None
+    if feat_name == "has_non_ascii":
+        return "URL contains non-standard characters that visually mimic a real domain (homograph attack)" if value == 1 else None
+    if feat_name == "brand_similarity_flag":
+        return "Domain closely resembles a well-known brand name — possible typosquat" if value == 1 else None
+    if feat_name == "brand_in_subdomain_flag":
+        return "A known brand name appears as a fake subdomain while the real domain is unrelated" if value == 1 else None
     return f"{feat_name} contributed to this score"
         
 def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
@@ -37,6 +44,22 @@ def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
     proba = model.predict_proba(X)[0][1]
     score = round(proba * 100)
 
+    # Rule-based override: these signals are rare in training data but
+    # near-deterministic indicators of phishing, so the ML model alone
+    # can't be trusted to weight them correctly. Force a high floor.
+    override_reason = None
+    if feature_row.get("has_obfuscated_ip") == 1:
+        score = max(score, 90)
+        override_reason = "URL hides an IP address using decimal or hex encoding — a known evasion technique"
+    elif feature_row.get("has_non_ascii") == 1:
+        score = max(score, 90)
+        override_reason = "URL contains non-standard characters that visually mimic a real domain (homograph attack)"
+    elif feature_row.get("brand_in_subdomain_flag") == 1:
+        score = max(score, 90)
+        override_reason = "A known brand name appears as a fake subdomain while the real domain is unrelated — a common impersonation trick"
+    elif feature_row.get("brand_similarity_flag") == 1:
+        score = min(100, score + 25)  # partial boost, not a hard floor — this signal can have false positives
+
     shap_values = explainer.shap_values(X)
     values = shap_values[0]
     feature_names = X.columns.tolist()
@@ -45,11 +68,13 @@ def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
     contributions.sort(key=lambda x: abs(x[1]), reverse=True)
 
     reasons = []
+    if override_reason:
+        reasons.append(override_reason)
     for feat_name, impact in contributions:
         if impact > 0:  # pushed toward "phishing"
             actual_value = feature_row[feat_name]
             description = _describe_feature(feat_name, actual_value)
-            if description:  # skip features where the value doesn't actually support the direction
+            if description and description not in reasons:  # skip duplicates and non-supporting features
                 reasons.append(description)
         if len(reasons) >= top_n:
             break
