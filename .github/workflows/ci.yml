@@ -32,16 +32,20 @@ jobs:
           import os
 
           sample_urls = [
-              'http://192.168.1.1/login-verify-account.php?user=admin&id=39284&token=xk29fz',
-              'http://185.220.101.5/secure/update-account.php?ref=8291ndsk',
-              'http://45.33.32.156/wp-admin/verify.php?session=aaqqzzxx99',
+              'http://192.168.1.1/login-verify-account.php?user=admin&id=39284&token=xk29fz&session=aa8821',
+              'http://185.220.101.5/secure/update-account.php?ref=8291ndsk&auth=99182zzxx',
+              'http://45.33.32.156/wp-admin/verify.php?session=aaqqzzxx99&id=44821',
+              'http://10.0.0.5/bank-secure-login.php?acct=8829102&pin=xxzz9911',
+              'http://172.16.254.1/paypal-confirm.php?id=99281zx&verify=true&token=aabbcc',
               'https://www.wikipedia.org',
               'https://www.google.com',
               'https://github.com',
               'https://www.python.org',
               'https://en.wikipedia.org/wiki/Python',
+              'https://www.mozilla.org',
+              'https://stackoverflow.com',
           ]
-          sample_labels = ['bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good']
+          sample_labels = ['bad', 'bad', 'bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good', 'good', 'good']
 
           df = build_feature_dataframe(sample_urls)
           df['label'] = sample_labels
@@ -60,7 +64,7 @@ jobs:
           X = df.drop(columns=['label', 'has_https'])
           y = df['label'].map({'bad': 1, 'good': 0})
 
-          model = XGBClassifier(n_estimators=50, max_depth=3, random_state=42, eval_metric='logloss')
+          model = XGBClassifier(n_estimators=100, max_depth=4, random_state=42, eval_metric='logloss')
           model.fit(X, y)
 
           os.makedirs('ml/models/v0.2.0', exist_ok=True)
