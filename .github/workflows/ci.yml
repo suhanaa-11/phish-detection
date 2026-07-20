@@ -24,5 +24,47 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Build small feature dataset for testing
+        run: |
+          python -c "
+          import pandas as pd
+          from ml.features.pipeline import build_feature_dataframe
+          import os
+
+          # Use a small synthetic sample so CI runs fast — real training uses the full local dataset
+          sample_urls = [
+              'http://192.168.1.1/login-verify.php?id=1',
+              'https://www.wikipedia.org',
+              'http://paypa1-secure.com/account',
+              'https://www.google.com',
+              'http://free-gift-cards-now.tk/claim?id=8291',
+              'https://github.com',
+          ]
+          sample_labels = ['bad', 'good', 'bad', 'good', 'bad', 'good']
+
+          df = build_feature_dataframe(sample_urls)
+          df['label'] = sample_labels
+          os.makedirs('data/processed', exist_ok=True)
+          df.to_csv('data/processed/features.csv', index=False)
+          "
+
+      - name: Train model for testing
+        run: |
+          python -c "
+          import pandas as pd
+          from xgboost import XGBClassifier
+          import joblib, os
+
+          df = pd.read_csv('data/processed/features.csv')
+          X = df.drop(columns=['label', 'has_https'])
+          y = df['label'].map({'bad': 1, 'good': 0})
+
+          model = XGBClassifier(n_estimators=50, max_depth=3, random_state=42, eval_metric='logloss')
+          model.fit(X, y)
+
+          os.makedirs('ml/models/v0.2.0', exist_ok=True)
+          joblib.dump(model, 'ml/models/v0.2.0/model.pkl')
+          "
+
       - name: Run tests
         run: pytest tests/ -v
