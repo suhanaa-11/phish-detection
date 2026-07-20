@@ -15,3 +15,5 @@ Thumbs.db
 # ML artifacts
 ml/models/**/*.pkl
 ml/models/**/*.onnx
+
+data/scans.db

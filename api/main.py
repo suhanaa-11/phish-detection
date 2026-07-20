@@ -5,8 +5,11 @@ from typing import List
 from ml.features.pipeline import build_feature_row
 from ml.explain import explain_prediction
 from ml.url_extractor import extract_urls_from_text
+from api.database import init_db, log_scan, get_recent_scans, get_stats
 
-app = FastAPI(title="PhishGuard API", version="0.2.0")
+app = FastAPI(title="PhishGuard API", version="0.3.0")
+
+init_db()
 
 
 class ScanRequest(BaseModel):
@@ -21,6 +24,7 @@ class BatchScanRequest(BaseModel):
 def _scan_single(url: str) -> dict:
     features = build_feature_row(url)
     result = explain_prediction(features)
+    log_scan(url, result["score"], result["verdict"])
     return {
         "url": url,
         "score": result["score"],
@@ -47,7 +51,6 @@ def scan_batch(request: BatchScanRequest):
         found = extract_urls_from_text(request.text)
         urls_to_scan.extend(found)
 
-    # de-duplicate while preserving order
     seen = set()
     unique_urls = []
     for u in urls_to_scan:
@@ -62,4 +65,12 @@ def scan_batch(request: BatchScanRequest):
         "total_scanned": len(results),
         "flagged_count": flagged_count,
         "results": results,
+    }
+
+
+@app.get("/history")
+def scan_history(limit: int = 50):
+    return {
+        "stats": get_stats(),
+        "scans": get_recent_scans(limit),
     }
