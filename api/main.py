@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
+from fastapi.responses import HTMLResponse
+from api.dashboard import DASHBOARD_HTML
 
 from ml.features.pipeline import build_feature_row
 from ml.explain import explain_prediction
@@ -42,6 +44,9 @@ def health_check():
 def scan_url(request: ScanRequest):
     return _scan_single(request.url)
 
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return DASHBOARD_HTML
 
 @app.post("/scan-batch")
 def scan_batch(request: BatchScanRequest):
