@@ -3,6 +3,10 @@ from pydantic import BaseModel
 from typing import List
 from fastapi.responses import HTMLResponse
 from api.dashboard import DASHBOARD_HTML
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request, Response
 
 from ml.features.pipeline import build_feature_row
 from ml.explain import explain_prediction
@@ -10,6 +14,9 @@ from ml.url_extractor import extract_urls_from_text
 from api.database import init_db, log_scan, get_recent_scans, get_stats
 
 app = FastAPI(title="PhishGuard API", version="0.3.0")
+limiter = Limiter(key_func=get_remote_address, headers_enabled=True)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 init_db()
 
@@ -41,19 +48,21 @@ def health_check():
 
 
 @app.post("/scan")
-def scan_url(request: ScanRequest):
-    return _scan_single(request.url)
+@limiter.limit("20/minute")
+def scan_url(request: Request, response: Response, scan_request: ScanRequest):
+    return _scan_single(scan_request.url)
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     return DASHBOARD_HTML
 
 @app.post("/scan-batch")
-def scan_batch(request: BatchScanRequest):
-    urls_to_scan = list(request.urls)
+@limiter.limit("10/minute")
+def scan_batch(request: Request, response: Response, batch_request: BatchScanRequest):
+    urls_to_scan = list(batch_request.urls)
 
     if request.text:
-        found = extract_urls_from_text(request.text)
+        found = extract_urls_from_text(batch_request.text)
         urls_to_scan.extend(found)
 
     seen = set()
