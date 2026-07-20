@@ -25,3 +25,22 @@ detection, content-based signals) in later iterations.
   clean, short URLs (e.g., URL shorteners, compromised legitimate domains) are
   harder to catch with this feature set alone.
 - No content-based or domain-age signals yet (planned for Phase 4).
+
+## Model v0.2.0 — Bug Fix: HTTPS Feature Data Leakage
+
+**Issue found:** SHAP analysis revealed `has_https` contributed an outsized, backwards
+signal (+3.53 impact vs <0.6 for all other features) causing legitimate HTTPS sites
+(e.g. wikipedia.org) to be scored 95/100 "phishing."
+
+**Root cause:** Investigation of the raw dataset showed only 88 of 549,346 URLs
+included an explicit `https://` scheme, and all 88 happened to be labeled `bad` by
+chance — the vast majority of URLs in both classes had no scheme prefix at all.
+The model learned a spurious correlation from this near-constant, sparse feature
+rather than a real security signal.
+
+**Fix:** Retrained excluding `has_https` from the feature set (v0.2.0).
+
+**Result:** ROC-AUC unchanged (0.8554 → 0.8554), confirming the feature added no
+real predictive value — removing it eliminated the false-positive pattern without
+any accuracy cost. Verified: wikipedia.org now scores 35 ("likely safe") instead
+of 95 ("phishing").
