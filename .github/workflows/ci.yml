@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build small feature dataset for testing
+        run: |
+          python -c "
+          import pandas as pd
+          from ml.features.pipeline import build_feature_dataframe
+          import os
+
+          sample_urls = [
+              'http://192.168.1.1/login-verify-account.php?user=admin&id=39284&token=xk29fz&session=aa8821',
+              'http://185.220.101.5/secure/update-account.php?ref=8291ndsk&auth=99182zzxx',
+              'http://45.33.32.156/wp-admin/verify.php?session=aaqqzzxx99&id=44821',
+              'http://10.0.0.5/bank-secure-login.php?acct=8829102&pin=xxzz9911',
+              'http://172.16.254.1/paypal-confirm.php?id=99281zx&verify=true&token=aabbcc',
+              'https://www.wikipedia.org',
+              'https://www.google.com',
+              'https://github.com',
+              'https://www.python.org',
+              'https://en.wikipedia.org/wiki/Python',
+              'https://www.mozilla.org',
+              'https://stackoverflow.com',
+          ]
+          sample_labels = ['bad', 'bad', 'bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good', 'good', 'good']
+
+          df = build_feature_dataframe(sample_urls)
+          df['label'] = sample_labels
+          os.makedirs('data/processed', exist_ok=True)
+          df.to_csv('data/processed/features.csv', index=False)
+          "
+
+      - name: Train model for testing
+        run: |
+          python -c "
+          import pandas as pd
+          from xgboost import XGBClassifier
+          import joblib, os
+
+          df = pd.read_csv('data/processed/features.csv')
+          X = df.drop(columns=['label', 'has_https'])
+          y = df['label'].map({'bad': 1, 'good': 0})
+
+          model = XGBClassifier(n_estimators=100, max_depth=4, random_state=42, eval_metric='logloss')
+          model.fit(X, y)
+
+          os.makedirs('ml/models/v0.2.0', exist_ok=True)
+          joblib.dump(model, 'ml/models/v0.2.0/model.pkl')
+          "
+
+      - name: Run tests
+        run: pytest tests/ -v
