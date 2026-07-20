@@ -31,16 +31,17 @@ jobs:
           from ml.features.pipeline import build_feature_dataframe
           import os
 
-          # Use a small synthetic sample so CI runs fast — real training uses the full local dataset
           sample_urls = [
-              'http://192.168.1.1/login-verify.php?id=1',
+              'http://192.168.1.1/login-verify-account.php?user=admin&id=39284&token=xk29fz',
+              'http://185.220.101.5/secure/update-account.php?ref=8291ndsk',
+              'http://45.33.32.156/wp-admin/verify.php?session=aaqqzzxx99',
               'https://www.wikipedia.org',
-              'http://paypa1-secure.com/account',
               'https://www.google.com',
-              'http://free-gift-cards-now.tk/claim?id=8291',
               'https://github.com',
+              'https://www.python.org',
+              'https://en.wikipedia.org/wiki/Python',
           ]
-          sample_labels = ['bad', 'good', 'bad', 'good', 'bad', 'good']
+          sample_labels = ['bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good']
 
           df = build_feature_dataframe(sample_urls)
           df['label'] = sample_labels
