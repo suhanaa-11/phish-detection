@@ -1,3 +1,4 @@
+import os
 import joblib
 import shap
 import pandas as pd
@@ -6,10 +7,25 @@ _model = None
 _explainer = None
 
 
+def _get_latest_model_path() -> str:
+    """Finds the highest-versioned model folder under ml/models/, so this
+    file never needs manual updates when a new model version is trained."""
+    models_dir = "ml/models"
+    versions = [
+        d for d in os.listdir(models_dir)
+        if os.path.isdir(os.path.join(models_dir, d)) and d.startswith("v")
+    ]
+    if not versions:
+        raise FileNotFoundError(f"No model versions found in {models_dir}")
+    versions.sort(key=lambda v: [int(x) for x in v.lstrip("v").split(".")])
+    latest = versions[-1]
+    return os.path.join(models_dir, latest, "model.pkl")
+
+
 def _load_model():
     global _model, _explainer
     if _model is None:
-        _model = joblib.load("ml/models/v0.4.0/model.pkl")
+        _model = joblib.load(_get_latest_model_path())
         _explainer = shap.TreeExplainer(_model)
     return _model, _explainer
 
@@ -35,12 +51,16 @@ def _describe_feature(feat_name: str, value) -> str:
         return "Domain closely resembles a well-known brand name — possible typosquat" if value == 1 else None
     if feat_name == "brand_in_subdomain_flag":
         return "A known brand name appears as a fake subdomain while the real domain is unrelated" if value == 1 else None
+    if feat_name == "has_suspicious_tld":
+        return "Domain uses a free/disposable TLD commonly abused for phishing" if value == 1 else None
+    if feat_name == "suspicious_keyword_count":
+        return f"URL contains {int(value)} phishing-associated keywords (e.g. 'secure', 'verify', 'login')" if value > 0 else None
     return f"{feat_name} contributed to this score"
         
 def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
     model, explainer = _load_model()
 
-    X = pd.DataFrame([feature_row]).drop(columns=["has_https"], errors="ignore")
+    X = pd.DataFrame([feature_row]).drop(columns=["has_https", "suspicious_keyword_count"], errors="ignore")
     proba = model.predict_proba(X)[0][1]
     score = round(proba * 100)
 
@@ -58,7 +78,15 @@ def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
         score = max(score, 90)
         override_reason = "A known brand name appears as a fake subdomain while the real domain is unrelated — a common impersonation trick"
     elif feature_row.get("brand_similarity_flag") == 1:
-        score = min(100, score + 25)  # partial boost, not a hard floor — this signal can have false positives
+        score = min(100, score + 35)  # partial boost, not a hard floor — this signal can have false positives
+    elif feature_row.get("has_suspicious_tld") == 1:
+        score = min(100, score + 30)  # strong signal — legitimate major services rarely use these TLDs
+
+    # Suspicious keyword density gets a small nudge regardless of other
+    # overrides — real login pages exist too, so this must stay gentle.
+    kw_count = feature_row.get("suspicious_keyword_count", 0)
+    if kw_count >= 3:
+        score = min(100, score + 10)
 
     shap_values = explainer.shap_values(X)
     values = shap_values[0]

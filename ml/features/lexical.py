@@ -145,7 +145,37 @@ def extract_lexical_features(url: str) -> dict:
         "has_non_ascii": has_non_ascii(url),
         "brand_similarity_flag": brand_similarity_flag(url),
         "brand_in_subdomain_flag": brand_in_subdomain_flag(url),
+        "has_suspicious_tld": has_suspicious_tld(url),
+        "suspicious_keyword_count": suspicious_keyword_count(url),
     }
+
+SUSPICIOUS_TLDS = {
+    "tk", "ml", "ga", "cf", "gq", "xyz", "top", "club", "work", "click",
+}
+
+SUSPICIOUS_KEYWORDS = [
+    "secure", "login", "verify", "account", "update", "confirm",
+    "signin", "webscr", "banking", "alert", "suspend", "recovery",
+]
+
+
+def has_suspicious_tld(url: str) -> int:
+    """1 if the domain uses a free/disposable TLD commonly abused for
+    phishing (e.g. .tk, .ml, .xyz)."""
+    try:
+        netloc = urlparse(url if "://" in url else "http://" + url).netloc
+        host = netloc.split("@")[-1].split(":")[0].lower()
+        tld = host.rstrip(".").split(".")[-1]
+        return 1 if tld in SUSPICIOUS_TLDS else 0
+    except Exception:
+        return 0
+
+
+def suspicious_keyword_count(url: str) -> int:
+    """Count of phishing-associated keywords found in the URL
+    (case-insensitive)."""
+    url_lower = url.lower()
+    return sum(1 for kw in SUSPICIOUS_KEYWORDS if kw in url_lower)
 
 def brand_in_subdomain_flag(url: str) -> int:
     """1 if a known brand name appears as a non-final label in the hostname

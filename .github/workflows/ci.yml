@@ -61,14 +61,14 @@ jobs:
           import joblib, os
 
           df = pd.read_csv('data/processed/features.csv')
-          X = df.drop(columns=['label', 'has_https'])
+          X = df.drop(columns=['label', 'has_https', 'suspicious_keyword_count'])
           y = df['label'].map({'bad': 1, 'good': 0})
 
           model = XGBClassifier(n_estimators=100, max_depth=4, random_state=42, eval_metric='logloss')
           model.fit(X, y)
 
-          os.makedirs('ml/models/v0.4.0', exist_ok=True)
-          joblib.dump(model, 'ml/models/v0.4.0/model.pkl')
+          os.makedirs('ml/models/v0.7.0', exist_ok=True)
+          joblib.dump(model, 'ml/models/v0.7.0/model.pkl')
           "
 
       - name: Run tests
