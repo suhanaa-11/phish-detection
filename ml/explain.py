@@ -1,3 +1,4 @@
+import os
 import joblib
 import shap
 import pandas as pd
@@ -5,10 +6,26 @@ import pandas as pd
 _model = None
 _explainer = None
 
+
+def _get_latest_model_path() -> str:
+    """Finds the highest-versioned model folder under ml/models/, so this
+    file never needs manual updates when a new model version is trained."""
+    models_dir = "ml/models"
+    versions = [
+        d for d in os.listdir(models_dir)
+        if os.path.isdir(os.path.join(models_dir, d)) and d.startswith("v")
+    ]
+    if not versions:
+        raise FileNotFoundError(f"No model versions found in {models_dir}")
+    versions.sort(key=lambda v: [int(x) for x in v.lstrip("v").split(".")])
+    latest = versions[-1]
+    return os.path.join(models_dir, latest, "model.pkl")
+
+
 def _load_model():
     global _model, _explainer
     if _model is None:
-        _model = joblib.load("ml/models/v0.6.0/model.pkl")
+        _model = joblib.load(_get_latest_model_path())
         _explainer = shap.TreeExplainer(_model)
     return _model, _explainer
 
