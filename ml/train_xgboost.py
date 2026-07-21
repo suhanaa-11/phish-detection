@@ -8,7 +8,7 @@ import os
 print("Loading processed features...")
 df = pd.read_csv("data/processed/features.csv")
 
-X = df.drop(columns=["label", "has_https"])
+X = df.drop(columns=["label", "has_https", "suspicious_keyword_count"])
 y = df["label"].map({"bad": 1, "good": 0})
 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -37,6 +37,6 @@ print("ROC-AUC:", roc_auc_score(y_test, y_proba))
 print("\nConfusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 
-os.makedirs("ml/models/v0.4.0", exist_ok=True)
-joblib.dump(model, "ml/models/v0.4.0/model.pkl")
-print("\nModel saved to ml/models/v0.4.0/model.pkl")
+os.makedirs("ml/models/v0.6.0", exist_ok=True)
+joblib.dump(model, "ml/models/v0.6.0/model.pkl")
+print("\nModel saved to ml/models/v0.6.0/model.pkl")

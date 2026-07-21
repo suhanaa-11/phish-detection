@@ -84,3 +84,23 @@ missed attack patterns now correctly flagged as phishing (scores 66-100),
 with 0 false positives introduced on real domains (google.com, wikipedia.org,
 paypal.com all still score 34-35, "likely safe"). Full methodology and
 results table in `docs/limitations.md`.
+
+## Model v0.7.0 — Hyperparameter Tuning
+
+**Approach:** Used `RandomizedSearchCV` (25 iterations, 3-fold cross-validation,
+scored on ROC-AUC) over the same v0.7.0 feature set — no new features added,
+so any improvement is purely from better model configuration, not new signal.
+
+**Search space:** n_estimators [200-500], max_depth [4-8], learning_rate
+[0.03-0.15], subsample [0.7-1.0], colsample_bytree [0.7-1.0], min_child_weight
+[1, 3, 5].
+
+**Best params found:** subsample=0.7, n_estimators=500, min_child_weight=3,
+max_depth=7, learning_rate=0.15, colsample_bytree=1.0
+
+**Result:** ROC-AUC improved from 0.860 (v0.7.0) to 0.869 — overall accuracy
+0.79 → 0.80, phishing recall 0.70 → 0.72, phishing precision 0.61 → 0.62.
+Improvement held across the board, not just in aggregate: verified against
+the full 14-case real-domain + red-team regression suite (see
+`docs/limitations.md`) with 14/14 correct, matching or exceeding every
+prior version on that same test set.

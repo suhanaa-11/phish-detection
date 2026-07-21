@@ -8,6 +8,21 @@ real-world evasion techniques. Rather than treating this as a single bug,
 we ran a structured red-team pass across three attack categories and
 tracked results through two rounds of fixes (v0.3.0, v0.4.0).
 
+### Standing regression test suite
+
+As the feature set and model evolved (v0.3.0 → v0.7.0), the following
+14 URLs became a standing manual regression check, run after any
+feature or model change: 7 real domains that must always score "safe"
+(google.com/accounts/login, microsoft.com, reddit.com, stackoverflow.com,
+paypal.com, wikipedia.org, facebook.com) and 7 constructed phishing
+patterns that must always score "phishing" (a disposable-TLD + keyword
+URL, a digit-swap Facebook typosquat, a brand-in-subdomain Apple
+impersonation, a homoglyph Amazon typosquat, a Cyrillic homograph of
+apple.com, a decimal-encoded IP, and a digit-swap PayPal typosquat).
+
+This suite caught a real false positive in v0.5.0 (see below) before
+it reached production, and confirms v0.7.0 passes all 14 cases.
+
 ### Attack categories tested
 
 1. **IDN homograph attacks** — domains using visually identical Unicode
@@ -37,6 +52,37 @@ tracked results through two rounds of fixes (v0.3.0, v0.4.0).
 
 **8 of 8 tested attack patterns caught after fixes, with 0 false positives
 introduced on legitimate domains.**
+
+## v0.5.0 False Positive: A Lesson in Feature Risk
+
+Adding `has_suspicious_tld` and `suspicious_keyword_count` in v0.5.0
+improved ROC-AUC to 0.881 — the best raw number of any version. But the
+standing regression suite caught a serious problem: `https://www.google.com/accounts/login`,
+a completely legitimate URL, scored 98/100 "phishing."
+
+**Root cause:** `suspicious_keyword_count` averaged only 0.0029 in the
+legitimate ("good") class — meaning 75%+ of real URLs have a count of
+exactly 0. When a real URL *did* contain 1-2 keywords (a normal
+occurrence on login/account pages), XGBoost had almost no legitimate
+examples to weigh against it, and learned an extreme split: SHAP analysis
+showed this single feature contributing +5.23 to the prediction — larger
+than every other feature's contribution combined.
+
+**Fix (v0.6.0):** Removed `suspicious_keyword_count` from the trained
+model entirely, keeping it only as a small, capped rule-based nudge
+(+10 points, only when count >= 3) applied after the ML score. This
+dropped ROC-AUC slightly (0.881 -> 0.860) but eliminated the false
+positive — verified via the regression suite.
+
+**Takeaway:** A feature with strong aggregate statistical separation
+between classes is not automatically safe to hand to a tree-based model
+without checking how it behaves on real edge cases. Rare-but-directional
+signals need either enough positive examples to generalize safely, or
+should stay outside the model as a capped, human-designed rule — the same
+lesson learned with `has_obfuscated_ip` and `has_non_ascii` in v0.3.0/v0.4.0,
+but this time the risk was a false positive on real traffic rather than a
+missed detection, which is arguably the more costly failure mode for a
+security tool.
 
 ## Root Cause
 
