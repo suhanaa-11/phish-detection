@@ -67,8 +67,8 @@ jobs:
           model = XGBClassifier(n_estimators=100, max_depth=4, random_state=42, eval_metric='logloss')
           model.fit(X, y)
 
-          os.makedirs('ml/models/v0.4.0', exist_ok=True)
-          joblib.dump(model, 'ml/models/v0.4.0/model.pkl')
+          os.makedirs('ml/models/v0.7.0', exist_ok=True)
+          joblib.dump(model, 'ml/models/v0.7.0/model.pkl')
           "
 
       - name: Run tests
