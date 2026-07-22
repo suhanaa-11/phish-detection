@@ -37,7 +37,7 @@ def score_url(model, url: str) -> int:
     elif feature_row.get("brand_in_subdomain_flag") == 1:
         score = max(score, 90)
     elif feature_row.get("brand_similarity_flag") == 1:
-        score = min(100, score + 40)
+        score = min(100, score + 50)
     elif feature_row.get("has_suspicious_tld") == 1:
         score = min(100, score + 30)
 
@@ -55,7 +55,7 @@ def run_suite(model_path: str):
     correct = 0
     for url, expected in TESTS:
         score = score_url(model, url)
-        got = "phishing" if score >= 50 else "safe"
+        got = "phishing" if score >= 60 else "safe"
         mark = "OK" if got == expected else "MISS"
         if got == expected:
             correct += 1
@@ -70,3 +70,4 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", required=True, help="Path to model.pkl to test")
     args = parser.parse_args()
     run_suite(args.model_path)
+    
