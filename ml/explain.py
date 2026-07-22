@@ -78,7 +78,7 @@ def explain_prediction(feature_row: dict, top_n: int = 3) -> dict:
         score = max(score, 90)
         override_reason = "A known brand name appears as a fake subdomain while the real domain is unrelated — a common impersonation trick"
     elif feature_row.get("brand_similarity_flag") == 1:
-        score = min(100, score + 35)  # partial boost, not a hard floor — this signal can have false positives
+        score = min(100, score + 40)  # partial boost, not a hard floor — this signal can have false positives
     elif feature_row.get("has_suspicious_tld") == 1:
         score = min(100, score + 30)  # strong signal — legitimate major services rarely use these TLDs
 
