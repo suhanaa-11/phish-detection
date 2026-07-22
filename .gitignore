@@ -17,3 +17,4 @@ ml/models/**/*.pkl
 ml/models/**/*.onnx
 
 data/scans.db
+.tranco_cache/

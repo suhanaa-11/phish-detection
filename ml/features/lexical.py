@@ -126,7 +126,7 @@ def brand_similarity_flag(url: str) -> int:
                 _edit_distance(label, brand),
                 _edit_distance(normalized_label, brand),
             )
-            if dist <= 2 and len(label) >= len(brand) - 2:
+            if dist <= 2 and len(label) >= len(brand) - 1:
                 return 1
         return 0
     except Exception:
