@@ -83,6 +83,11 @@ KNOWN_BRANDS = [
     "paypal", "google", "apple", "amazon", "microsoft", "facebook",
     "netflix", "instagram", "twitter", "linkedin", "ebay", "chase",
     "wellsfargo", "bankofamerica", "dropbox", "adobe",
+    # Indian banks and financial services -- common real-world phishing
+    # targets not covered by the original (US/global-brand-skewed) dataset
+    "sbi", "hdfc", "icici", "axisbank", "kotak", "paytm", "phonepe",
+    # Indian government/institutional services
+    "irctc", "incometax", "uidai", "aadhaar", "epfo", "csvtu",
 ]
 
 
@@ -115,6 +120,25 @@ def _normalize_homoglyphs(text: str) -> str:
         result = result.replace(old, new)
     return result
 
+COMPOUND_TLDS = {
+    "ac.in", "co.in", "gov.in", "org.in", "edu.in", "net.in", "res.in",
+    "nic.in", "gen.in",
+    "co.uk", "org.uk", "gov.uk", "ac.uk",
+    "com.au", "com.br", "co.za", "co.jp",
+}
+
+
+def _split_registered_domain(labels: list) -> tuple:
+    """Returns (registered_domain_label, earlier_labels), accounting for
+    common two-part ccTLDs (e.g. csvtu.ac.in, irctc.co.in) so the real
+    registrable label isn't mistaken for a subdomain just because the TLD
+    itself happens to have two parts."""
+    if len(labels) >= 3 and ".".join(labels[-2:]) in COMPOUND_TLDS:
+        return labels[-3], labels[:-3]
+    if len(labels) >= 2:
+        return labels[-2], labels[:-2]
+    return labels[0], []
+
 def brand_similarity_flag(url: str) -> int:
     """1 if hostname is suspiciously close (edit distance <=1) to a known
     brand name without being an exact match, OR if a known brand name
@@ -127,7 +151,7 @@ def brand_similarity_flag(url: str) -> int:
         dot_labels = host.split(".")
         if len(dot_labels) < 2:
             return 0
-        registrable_label = dot_labels[-2]
+        registrable_label, _ = _split_registered_domain(dot_labels)
         segments = registrable_label.split("-")
         label = segments[0]
         normalized_label = _normalize_homoglyphs(label)
@@ -206,11 +230,12 @@ def brand_in_subdomain_flag(url: str) -> int:
         host = netloc.split("@")[-1].split(":")[0].lower()
         labels = host.split(".")
 
-        if len(labels) < 3:
+        if len(labels) < 2:
             return 0
 
-        registered_domain = labels[-2]  # e.g. "verify-account-security-check" in the .xyz example
-        earlier_labels = labels[:-2]    # everything before the real registered domain
+        registered_domain, earlier_labels = _split_registered_domain(labels)
+        if not earlier_labels:
+            return 0
 
         for brand in KNOWN_BRANDS:
             if registered_domain == brand:
