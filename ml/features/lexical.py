@@ -65,11 +65,16 @@ def has_obfuscated_ip(url: str) -> int:
 
 def has_non_ascii(url: str) -> int:
     """1 if the hostname contains non-ASCII characters (e.g. Cyrillic
-    look-alikes used in IDN homograph attacks)."""
+    look-alikes used in IDN homograph attacks), including Punycode-encoded
+    ("xn--") labels — the ASCII-safe form browsers decode back to the
+    deceptive Unicode characters before displaying to users."""
     try:
         netloc = urlparse(url if "://" in url else "http://" + url).netloc
         host = netloc.split("@")[-1].split(":")[0]
-        return 1 if any(ord(c) > 127 for c in host) else 0
+        if any(ord(c) > 127 for c in host):
+            return 1
+        labels = host.lower().split(".")
+        return 1 if any(label.startswith("xn--") for label in labels) else 0
     except Exception:
         return 0
 
@@ -111,12 +116,20 @@ def _normalize_homoglyphs(text: str) -> str:
     return result
 
 def brand_similarity_flag(url: str) -> int:
-    """1 if hostname is suspiciously close (edit distance 1-2) to a known
-    brand name without being an exact match — classic typosquat signal."""
+    """1 if hostname is suspiciously close (edit distance <=1) to a known
+    brand name without being an exact match, OR if a known brand name
+    appears as an exact hyphen-separated segment within a larger compound
+    domain that isn't actually the brand's own domain (e.g.
+    'secure-paypal-verification.com', 'paypal-account-alert.net')."""
     try:
         netloc = urlparse(url if "://" in url else "http://" + url).netloc
         host = netloc.split("@")[-1].split(":")[0].lower()
-        label = re.split(r"[.\-]", host)[0]
+        dot_labels = host.split(".")
+        if len(dot_labels) < 2:
+            return 0
+        registrable_label = dot_labels[-2]
+        segments = registrable_label.split("-")
+        label = segments[0]
         normalized_label = _normalize_homoglyphs(label)
 
         for brand in KNOWN_BRANDS:
@@ -126,8 +139,15 @@ def brand_similarity_flag(url: str) -> int:
                 _edit_distance(label, brand),
                 _edit_distance(normalized_label, brand),
             )
-            if dist <= 2 and len(label) >= len(brand) - 1:
+            if dist <= 1 and len(label) >= len(brand) - 1:
                 return 1
+
+        # Exact brand name as a hyphen segment anywhere in a compound
+        # domain that isn't the brand's real domain (more than one segment
+        # means it's not simply "brand.com").
+        if len(segments) > 1 and any(brand in segments for brand in KNOWN_BRANDS):
+            return 1
+
         return 0
     except Exception:
         return 0
