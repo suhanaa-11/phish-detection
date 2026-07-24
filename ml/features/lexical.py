@@ -1,14 +1,27 @@
 import re
 import math
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
+
+def _decode_for_char_features(url: str) -> str:
+    """Decode percent-encoded sequences before computing raw character-
+    based features (length, entropy, digit/special-char counts). Without
+    this, incidental URL-encoding in legitimate query strings (e.g. %20
+    for a space, %2C for a comma) gets miscounted as meaningful digits or
+    special characters, inflating the apparent 'suspiciousness' of
+    ordinary search/filter URLs."""
+    try:
+        return unquote(url)
+    except Exception:
+        return url
 
 def get_url_length(url: str) -> int:
-    return len(url)
+    return len(_decode_for_char_features(url))
 
 
 def get_entropy(url: str) -> float:
     """Shannon entropy — random-looking/obfuscated URLs tend to score higher."""
+    url = _decode_for_char_features(url)
     if not url:
         return 0.0
     prob = [url.count(c) / len(url) for c in set(url)]
@@ -16,18 +29,15 @@ def get_entropy(url: str) -> float:
 
 
 def count_digits(url: str) -> int:
-    return sum(c.isdigit() for c in url)
-
+    return sum(c.isdigit() for c in _decode_for_char_features(url))
 
 def count_special_chars(url: str) -> int:
-    return len(re.findall(r"[@\-_%=&?]", url))
-
+    return len(re.findall(r"[@\-_%=&?]", _decode_for_char_features(url)))
 
 def has_ip_address(url: str) -> int:
     """1 if the host looks like a raw IP address instead of a domain name."""
     pattern = r"(\d{1,3}\.){3}\d{1,3}"
     return 1 if re.search(pattern, url) else 0
-
 
 def count_subdomains(url: str) -> int:
     try:
